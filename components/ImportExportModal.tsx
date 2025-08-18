@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import type { Rank, Character, RankId, ExportData } from '../types';
+import type { Rank, Character, RankId, ExportData, GameMode } from '../types';
 
 declare const html2canvas: any;
 
@@ -10,10 +10,11 @@ interface ImportExportModalProps {
   gridRef: React.RefObject<HTMLDivElement>;
   characters: Character[];
   ranks: Rank[];
-  gridState: RankId[][];
+  gridStates: { solo: RankId[][]; dual: RankId[][] };
+  activeMode: GameMode;
 }
 
-const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose, onImport, gridRef, characters, ranks, gridState }) => {
+const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose, onImport, gridRef, characters, ranks, gridStates, activeMode }) => {
   const downloadFile = (content: string, fileName: string, mimeType: string) => {
     const blob = new Blob([content], { type: mimeType });
     const link = document.createElement('a');
@@ -33,17 +34,18 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose, 
     link.click();
     document.body.removeChild(link);
   };
-  
+
   const handleExportJSON = useCallback(() => {
-    const exportData: ExportData = { characters, ranks, gridState };
+    const exportData: ExportData = { characters, ranks, gridStates };
     const jsonString = JSON.stringify(exportData, null, 2);
     downloadFile(jsonString, 'matchup-data.json', 'application/json');
-  }, [characters, ranks, gridState]);
+  }, [characters, ranks, gridStates]);
 
   const handleExportCSV = useCallback(() => {
+    const activeGrid = gridStates[activeMode];
     const header = ['Your Pick', ...characters.map(c => c.name)];
     const csvRows = [header.join(',')];
-    gridState.forEach((row, rowIndex) => {
+    activeGrid.forEach((row, rowIndex) => {
       const rowData = [characters[rowIndex].name];
       row.forEach((rankId, colIndex) => {
         if (rowIndex === colIndex) {
@@ -56,8 +58,8 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose, 
       csvRows.push(rowData.join(','));
     });
     const csvContent = csvRows.join('\n');
-    downloadFile(csvContent, 'matchup-table.csv', 'text/csv;charset=utf-8;');
-  }, [characters, ranks, gridState]);
+    downloadFile(csvContent, `matchup-table-${activeMode}.csv`, 'text/csv;charset=utf-8;');
+  }, [characters, ranks, gridStates, activeMode]);
 
   const handleExportImage = useCallback(async (format: 'png' | 'jpeg') => {
     if (!gridRef.current || typeof html2canvas === 'undefined') {
@@ -65,19 +67,19 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose, 
       return;
     }
     try {
-      const canvas = await html2canvas(gridRef.current, { 
+      const canvas = await html2canvas(gridRef.current, {
         backgroundColor: '#1f2937', // bg-gray-800
-        useCORS: true, 
-        allowTaint: true 
+        useCORS: true,
+        allowTaint: true
       });
       const dataUrl = canvas.toDataURL(`image/${format}`, format === 'jpeg' ? 0.9 : 1.0);
-      downloadDataURL(dataUrl, `matchup-table.${format}`);
+      downloadDataURL(dataUrl, `matchup-table-${activeMode}.${format}`);
     } catch (error) {
       console.error('Failed to export image:', error);
       alert('An error occurred while exporting the image. Check the console for details.');
     }
-  }, [gridRef]);
-  
+  }, [gridRef, activeMode]);
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -101,56 +103,59 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose, 
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4" 
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="import-export-title"
-    >
-      <div 
-        className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-lg border border-gray-700" 
-        onClick={e => e.stopPropagation()}
+      <div
+          className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4"
+          onClick={onClose}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="import-export-title"
       >
-        <h3 id="import-export-title" className="text-2xl font-bold mb-6 text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400">
-          Import / Export Data
-        </h3>
-        
-        <div className="space-y-6">
-          {/* Export Section */}
-          <div>
-            <h4 className="text-lg font-semibold mb-3 text-gray-300 border-b border-gray-700 pb-2">Export</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <button onClick={() => handleExportImage('png')} className="export-button">Export PNG</button>
-              <button onClick={() => handleExportImage('jpeg')} className="export-button">Export JPG</button>
-              <button onClick={handleExportJSON} className="export-button">Export JSON</button>
-              <button onClick={handleExportCSV} className="export-button">Export CSV</button>
+        <div
+            className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-lg border border-gray-700"
+            onClick={e => e.stopPropagation()}
+        >
+          <h3 id="import-export-title" className="text-2xl font-bold mb-6 text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400">
+            Import / Export Data
+          </h3>
+
+          <div className="space-y-6">
+            {/* Export Section */}
+            <div>
+              <h4 className="text-lg font-semibold mb-2 text-gray-300 border-b border-gray-700 pb-2">Export</h4>
+              <p className="text-sm text-gray-400 mb-3">
+                Exporting <span className="font-bold text-purple-400">{activeMode === 'solo' ? 'Solo Lane' : 'Dual Lane'}</span> table (PNG, JPG, CSV).
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <button onClick={() => handleExportImage('png')} className="export-button">Export PNG</button>
+                <button onClick={() => handleExportImage('jpeg')} className="export-button">Export JPG</button>
+                <button onClick={handleExportJSON} className="export-button">Export JSON</button>
+                <button onClick={handleExportCSV} className="export-button">Export CSV</button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">Export as JSON to save your full configuration (both Solo & Dual grids) for later import.</p>
             </div>
-             <p className="text-xs text-gray-500 mt-2">Export as JSON to save your full configuration, including custom ranks, for later import.</p>
+
+            {/* Import Section */}
+            <div>
+              <h4 className="text-lg font-semibold mb-3 text-gray-300 border-b border-gray-700 pb-2">Import</h4>
+              <label htmlFor="import-file" className="w-full text-center px-4 py-3 rounded-md bg-gray-700 hover:bg-gray-600 font-semibold transition-colors cursor-pointer block">
+                Click to select a JSON file
+              </label>
+              <input
+                  id="import-file"
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileChange}
+                  className="hidden"
+              />
+              <p className="text-xs text-gray-500 mt-2">Importing will overwrite your current grid and ranks.</p>
+            </div>
           </div>
 
-          {/* Import Section */}
-          <div>
-            <h4 className="text-lg font-semibold mb-3 text-gray-300 border-b border-gray-700 pb-2">Import</h4>
-            <label htmlFor="import-file" className="w-full text-center px-4 py-3 rounded-md bg-gray-700 hover:bg-gray-600 font-semibold transition-colors cursor-pointer block">
-              Click to select a JSON file
-            </label>
-            <input
-              id="import-file"
-              type="file"
-              accept=".json"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            <p className="text-xs text-gray-500 mt-2">Importing will overwrite your current grid and ranks.</p>
+          <div className="flex justify-end mt-8">
+            <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-600 hover:bg-gray-500 font-semibold transition-colors">Close</button>
           </div>
         </div>
-
-        <div className="flex justify-end mt-8">
-          <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-600 hover:bg-gray-500 font-semibold transition-colors">Close</button>
-        </div>
-      </div>
-       <style>{`
+        <style>{`
             .export-button {
                 padding: 0.5rem 1rem;
                 border-radius: 0.5rem;
@@ -162,7 +167,7 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose, 
                 background-color: #4B5563; /* bg-gray-600 */
             }
         `}</style>
-    </div>
+      </div>
   );
 };
 
