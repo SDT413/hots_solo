@@ -1,0 +1,5 @@
+{
+  "name": "Heroes Matchup Ranker",
+  "description": "An interactive application to manually rank hero matchups based on a 5-tier color-coded system. Select a rank from the legend and 'paint' the grid to create your own matchup chart.",
+  "requestFramePermissions": []
+}
