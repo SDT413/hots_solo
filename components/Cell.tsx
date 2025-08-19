@@ -22,7 +22,7 @@ const Cell: React.FC<CellProps> = ({ rowIndex, colIndex, rankId, ranks, isDiagon
   };
 
   if (isDiagonal) {
-    return <div className={`aspect-square ${DIAGONAL_COLOR}`}></div>;
+    return <div className={`aspect-square ${DIAGONAL_COLOR} h-[100%] w-[100%]`}></div>;
   }
 
   return (
